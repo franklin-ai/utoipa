@@ -1664,15 +1664,12 @@ impl ToTokens for SchemaProperty<'_> {
                                     name = Cow::Borrowed(self.object_name);
                                 }
                                 nullable
-                                    .map(|nullable| {
+                                    .map(|_| {
                                         if !&type_tree.children.is_none() {
                                             name = name_from_generic(type_tree);
                                         }
-
                                         quote! {
-                                            utoipa::openapi::schema::AllOfBuilder::new()
-                                                #nullable
-                                                .item(utoipa::openapi::Ref::from_schema_name(#name))
+                                            utoipa::openapi::Ref::from_schema_name(#name)
                                         }
                                     })
                                     .unwrap_or_else(|| {
