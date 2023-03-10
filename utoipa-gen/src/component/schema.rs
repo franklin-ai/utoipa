@@ -1665,6 +1665,10 @@ impl ToTokens for SchemaProperty<'_> {
                                 }
                                 nullable
                                     .map(|nullable| {
+                                        if !&type_tree.children.is_none() {
+                                            name = name_from_generic(type_tree);
+                                        }
+
                                         quote! {
                                             utoipa::openapi::schema::AllOfBuilder::new()
                                                 #nullable
@@ -1672,8 +1676,45 @@ impl ToTokens for SchemaProperty<'_> {
                                         }
                                     })
                                     .unwrap_or_else(|| {
-                                        quote! {
-                                            utoipa::openapi::Ref::from_schema_name(#name)
+                                        if !&type_tree.children.is_none() {
+                                            name = name_from_generic(type_tree);
+
+                                            let empty_features = Vec::new();
+                                            let features =
+                                                self.features.unwrap_or(&empty_features).clone();
+
+                                            let deprecated = self.get_deprecated();
+                                            let description = self.get_description();
+
+                                            let schema_property = SchemaProperty {
+                                                type_tree: self
+                                                    .type_tree
+                                                    .children
+                                                    .as_ref()
+                                                    .expect(
+                                                        "SchemaProperty Vec should have children",
+                                                    )
+                                                    .iter()
+                                                    .next()
+                                                    .expect(
+                                                        "SchemaProperty Vec should have 1 child",
+                                                    ),
+                                                comments: None,
+                                                features: Some(&features),
+                                                deprecated: None,
+                                                object_name: &name,
+                                            };
+
+                                            quote! {
+                                                utoipa::openapi::schema::ArrayBuilder::new()
+                                                    .items(#schema_property)
+                                                    #deprecated
+                                                    #description
+                                            }
+                                        } else {
+                                            quote! {
+                                                utoipa::openapi::Ref::from_schema_name(#name)
+                                            }
                                         }
                                     })
                                     .to_tokens(tokens);
@@ -1693,6 +1734,21 @@ impl ToTokens for SchemaProperty<'_> {
             }
         }
     }
+}
+
+fn name_from_generic(type_tree: &TypeTree) -> Cow<'static, str> {
+    // Replace butane Many with inner type name
+    let type_path = &**type_tree
+        .children
+        .as_ref()
+        .expect("Something should be here")
+        .iter()
+        .next()
+        .expect("Something here")
+        .path
+        .as_ref()
+        .expect("Something else should be here");
+    Cow::Owned(format_path_ref(type_path))
 }
 
 trait SchemaFeatureExt {
